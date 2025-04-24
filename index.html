@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>簡単LINEアクセス</title>
+    <title>簡単LINE連絡先登録</title>
     <style>
         * {
             margin: 0;
@@ -23,7 +23,7 @@
         h1 {
             text-align: center;
             margin-bottom: 20px;
-            color: #00B900; /* LINEカラー */
+            color: #00B900;
         }
         
         .contact-list {
@@ -58,7 +58,7 @@
             font-weight: bold;
         }
         
-        .add-btn, .settings-btn {
+        .btn {
             display: block;
             width: 100%;
             padding: 15px;
@@ -70,17 +70,22 @@
             cursor: pointer;
         }
         
-        .add-btn {
+        .btn-primary {
             background: #00B900;
             color: white;
         }
         
-        .settings-btn {
+        .btn-secondary {
             background: #333;
             color: white;
         }
         
-        /* 設定画面用モーダル */
+        .btn-danger {
+            background: #FF4444;
+            color: white;
+        }
+        
+        /* モーダルスタイル */
         .modal {
             display: none;
             position: fixed;
@@ -100,6 +105,8 @@
             max-width: 400px;
             padding: 20px;
             border-radius: 15px;
+            max-height: 80vh;
+            overflow-y: auto;
         }
         
         .close-btn {
@@ -118,48 +125,92 @@
             font-weight: bold;
         }
         
-        .input-group input {
+        .input-group input, .input-group select {
             width: 100%;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 5px;
         }
         
-        .save-btn {
-            background: #00B900;
-            color: white;
-            border: none;
-            padding: 10px 15px;
+        .method-panel {
+            display: none;
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #eee;
             border-radius: 5px;
-            cursor: pointer;
+        }
+        
+        #qrScanner {
+            width: 100%;
+            height: 200px;
+            background: black;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .instructions {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
         }
     </style>
 </head>
 <body>
-    <h1>簡単LINEアクセス</h1>
+    <h1>簡単LINE連絡先登録</h1>
     
     <div class="contact-list" id="contactList">
         <!-- 連絡先がここに追加されます -->
     </div>
     
-    <button class="add-btn" id="addContactBtn">連絡先を追加</button>
-    <button class="settings-btn" id="settingsBtn">設定</button>
+    <button class="btn btn-primary" id="addContactBtn">連絡先を追加</button>
+    <button class="btn btn-secondary" id="settingsBtn">設定</button>
     
     <!-- 連絡先追加モーダル -->
     <div class="modal" id="addModal">
         <div class="modal-content">
             <span class="close-btn" id="closeAddModal">&times;</span>
             <h2>連絡先を追加</h2>
+            
             <div class="input-group">
                 <label for="contactName">表示名</label>
                 <input type="text" id="contactName" placeholder="例: 母">
             </div>
+            
             <div class="input-group">
-                <label for="lineUserId">LINEユーザーID</label>
-                <input type="text" id="lineUserId" placeholder="例: U1234567890">
-                <p style="font-size:12px; color:#666;">※LINEアプリで「設定」→「プロフィール」から確認できます</p>
+                <label for="registerMethod">登録方法</label>
+                <select id="registerMethod">
+                    <option value="url">プロフィールURLで登録</option>
+                    <option value="qr">QRコードで登録</option>
+                    <option value="manual">手動入力（上級者向け）</option>
+                </select>
             </div>
-            <button class="save-btn" id="saveContactBtn">保存</button>
+            
+            <!-- プロフィールURL入力 -->
+            <div id="urlInput" class="method-panel">
+                <div class="input-group">
+                    <label for="profileUrl">LINEプロフィールURL</label>
+                    <input type="text" id="profileUrl" placeholder="例: http://line.me/ti/p/~example_id">
+                    <p class="instructions">LINEアプリで「設定」→「プロフィール」→「プロフィールURL」からコピー</p>
+                </div>
+            </div>
+            
+            <!-- QRコード読み取り -->
+            <div id="qrInput" class="method-panel">
+                <button class="btn btn-primary" id="scanQRBtn">QRコードをスキャン</button>
+                <video id="qrScanner"></video>
+                <p class="instructions">相手のLINEで「設定」→「QRコード」を表示</p>
+            </div>
+            
+            <!-- 手動入力 -->
+            <div id="manualInput" class="method-panel">
+                <div class="input-group">
+                    <label for="lineUserId">LINEユーザーID</label>
+                    <input type="text" id="lineUserId" placeholder="例: U1234567890">
+                    <p class="instructions">LINEアプリで「設定」→「プロフィール」から確認</p>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary" id="saveContactBtn">保存</button>
         </div>
     </div>
     
@@ -172,10 +223,13 @@
             <ul id="savedContactsList" style="margin:10px 0; list-style:none;">
                 <!-- 登録済み連絡先が表示されます -->
             </ul>
-            <button class="save-btn" id="resetBtn" style="background:#FF4444;">データをリセット</button>
+            <button class="btn btn-danger" id="resetBtn">データをリセット</button>
         </div>
     </div>
 
+    <!-- QRコードスキャンライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // ローカルストレージから連絡先を読み込み
@@ -192,6 +246,17 @@
             const saveContactBtn = document.getElementById('saveContactBtn');
             const resetBtn = document.getElementById('resetBtn');
             const savedContactsList = document.getElementById('savedContactsList');
+            const registerMethod = document.getElementById('registerMethod');
+            const methodPanels = {
+                url: document.getElementById('urlInput'),
+                qr: document.getElementById('qrInput'),
+                manual: document.getElementById('manualInput')
+            };
+            const qrScanner = document.getElementById('qrScanner');
+            let qrStream = null;
+            
+            // 初期表示
+            methodPanels.url.style.display = 'block';
             
             // 連絡先リストを描画
             function renderContacts() {
@@ -211,14 +276,12 @@
                     `;
                     
                     contactItem.addEventListener('click', () => {
-                        // LINE Deep Linkを開く
                         window.location.href = `line://nv/chat?userId=${contact.userId}`;
                     });
                     
                     contactList.appendChild(contactItem);
                 });
                 
-                // 設定画面の連絡先リストも更新
                 renderSavedContactsList();
             }
             
@@ -242,6 +305,72 @@
                 });
             }
             
+            // URLからユーザーIDを抽出
+            function extractUserId(url) {
+                // line.me/ti/p/[user_id] または line.me/ti/p/~[user_id] 形式
+                const match = url.match(/line\.me\/ti\/p\/(~?)([^\/]+)/);
+                if (match) {
+                    return match[1] ? match[2] : `~${match[2]}`;
+                }
+                return null;
+            }
+            
+            // QRコードスキャン開始
+            document.getElementById('scanQRBtn').addEventListener('click', async () => {
+                try {
+                    qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                    qrScanner.srcObject = qrStream;
+                    qrScanner.style.display = 'block';
+                    
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    function scanFrame() {
+                        if (qrScanner.readyState === qrScanner.HAVE_ENOUGH_DATA) {
+                            canvas.width = qrScanner.videoWidth;
+                            canvas.height = qrScanner.videoHeight;
+                            ctx.drawImage(qrScanner, 0, 0, canvas.width, canvas.height);
+                            
+                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            const code = jsQR(imageData.data, imageData.width, imageData.height);
+                            
+                            if (code) {
+                                const url = code.data;
+                                const userId = extractUserId(url);
+                                if (userId) {
+                                    document.getElementById('profileUrl').value = url;
+                                    stopQRScanner();
+                                }
+                            }
+                        }
+                        requestAnimationFrame(scanFrame);
+                    }
+                    scanFrame();
+                } catch (err) {
+                    alert('カメラへのアクセスを許可してください');
+                    console.error(err);
+                }
+            });
+            
+            // QRコードスキャン停止
+            function stopQRScanner() {
+                if (qrStream) {
+                    qrStream.getTracks().forEach(track => track.stop());
+                    qrStream = null;
+                }
+                qrScanner.style.display = 'none';
+                qrScanner.srcObject = null;
+            }
+            
+            // 登録方法切り替え
+            registerMethod.addEventListener('change', (e) => {
+                Object.values(methodPanels).forEach(panel => {
+                    panel.style.display = 'none';
+                });
+                methodPanels[e.target.value].style.display = 'block';
+                stopQRScanner();
+            });
+            
             // イベントリスナー
             addContactBtn.addEventListener('click', () => {
                 addModal.style.display = 'flex';
@@ -253,6 +382,7 @@
             
             closeAddModal.addEventListener('click', () => {
                 addModal.style.display = 'none';
+                stopQRScanner();
             });
             
             closeSettingsModal.addEventListener('click', () => {
@@ -261,14 +391,37 @@
             
             saveContactBtn.addEventListener('click', () => {
                 const name = document.getElementById('contactName').value.trim();
-                const userId = document.getElementById('lineUserId').value.trim();
+                const method = registerMethod.value;
                 
-                if (!name || !userId) {
-                    alert('名前とLINEユーザーIDを入力してください');
+                let userId = '';
+                
+                if (method === 'url') {
+                    const url = document.getElementById('profileUrl').value.trim();
+                    userId = extractUserId(url);
+                    if (!userId) {
+                        alert('正しいLINEプロフィールURLを入力してください');
+                        return;
+                    }
+                } else if (method === 'qr') {
+                    const url = document.getElementById('profileUrl').value.trim();
+                    userId = extractUserId(url);
+                    if (!userId) {
+                        alert('QRコードをスキャンしてください');
+                        return;
+                    }
+                } else {
+                    userId = document.getElementById('lineUserId').value.trim();
+                    if (!userId) {
+                        alert('LINEユーザーIDを入力してください');
+                        return;
+                    }
+                }
+                
+                if (!name) {
+                    alert('表示名を入力してください');
                     return;
                 }
                 
-                // 連絡先を追加（最大5人）
                 if (contacts.length >= 5) {
                     alert('連絡先は最大5人までです');
                     return;
@@ -277,9 +430,13 @@
                 contacts.push({ name, userId });
                 localStorage.setItem('lineContacts', JSON.stringify(contacts));
                 
+                // 入力欄をリセット
                 document.getElementById('contactName').value = '';
+                document.getElementById('profileUrl').value = '';
                 document.getElementById('lineUserId').value = '';
+                
                 addModal.style.display = 'none';
+                stopQRScanner();
                 renderContacts();
             });
             
